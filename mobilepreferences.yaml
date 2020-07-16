@@ -1,0 +1,841 @@
+openapi: 3.0.0
+info:
+  description: "Сервис обработки пользовательских данных"
+  version: "1.0.0"
+  title: "MotherApp user preferences"
+  contact:
+    email: "roman.khabibullin@decathlon.com"
+servers:
+  - url: https://api.dev.decathlon.ru/mobilepreferences
+    description: "DEV environment"
+  - url: https://api.decathlon.ru/mobilepreferences
+    description: "PROD environment"
+  - url: http://localhost:8080
+    description: "Local environment"
+tags:
+  - name: "Профиль"
+    description: "Профиль с decathlon.ru"
+  - name: "Корзина"
+    description: "Оформление заказа через корзины сайта"
+  - name: "Приложение"
+    description: "Проверка версии API бакенда"
+  - name: "История заказов"
+    description: "История заказов из POSLOG"
+  - name: "Настройки пользователя"
+    description: "Различные данные пользователя из профиля сайта"
+paths:
+  /api/shop/v2/basket:
+    get:
+      tags:
+        - Корзина
+      summary: "Получить текущую корзину пользователя"
+      security:
+        - OsmoseToken: []
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Basket"
+          description: "Успешно"
+        403:
+          description: "Токен не действителен"
+        500:
+          description: "Ошибка доступа к сайту"
+    post:
+      tags:
+        - "Корзина"
+      summary: "Обновить состав корзины пользователя"
+      security:
+        - OsmoseToken: []
+      requestBody:
+        description: "Требуемы состав корзины"
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        description: Идентификатор артикула
+                        example: 2425279
+                      qty:
+                        type: integer
+                        description: Кол-во товара
+                        example: 1
+      responses:
+        200:
+          description: "Успешно. В ответе реальный состав корзины"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Basket"
+        403:
+          description: "Токен не действителен"
+        500:
+          description: "Ошибка доступа к сайту"
+
+  /api/shop/v2/user/login:
+    post:
+      tags:
+        - "Профиль"
+      summary: "Авторизоваться на сайте"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  description: "Email Пользователя"
+                  example: "user@example.com"
+                password:
+                  type: string
+                  description: "Пароль пользователя"
+                  example: "12345678"
+              required:
+                - email
+                - password
+      responses:
+        200:
+          description: success
+          content:
+            application/json:
+              schema:
+                type: object
+                description: "Результат авторизации"
+                properties:
+                  token:
+                    description: "Токен авторизации"
+                    type: string
+                    example: "JbduBVHI8dnbt7BVCYUike..."
+                  success:
+                    description: "Успешно?"
+                    type: boolean
+                  cardNumber:
+                    type: integer
+                    description: "Номер карты пользователя"
+                    example: 2090780618128
+                  name:
+                    type: string
+                    description: "Полное имя"
+                    example: "Карпов Василий"
+                  error:
+                    type: string
+                    description: "Код ошибки"
+                    enum: [INTERNAL, INVALID_CREDENTIALS, URM_UNAIVAILABLE]
+                  errorMsg:
+                    type: string
+                    description: "Описание ошибки"
+                    example: "Неправильный пароль"
+  /api/shop/v2/user/verifyEmail:
+    post:
+      tags:
+        - "Профиль"
+      summary: "Проверить возможность регистрации email"
+      description: Если email есть в базе, то отправляет письмо восстановления пароля. Иначе проверят формат email и домен
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  description: "Email Пользователя"
+                  example: "user@example.com"
+              required:
+                - email
+      responses:
+        200:
+          description: success
+          content:
+            application/json:
+              schema:
+                type: object
+                description: "Результат проверки"
+                properties:
+                  status:
+                    type: string
+                    enum: [VALID_NEW, EXISTING, INVALID, BAD_DOMAIN]
+                    description: >
+                      Результат проверки:
+                        * `VALID_NEW` можно зарегистрировать пользователя
+                        * `EXISTING` пользователь существует. отправлено письмо восстановления пароля
+                        * `INVALID` неправильный формат email
+                        * `BAD_DOMAIN` домен почтового ящика запрещен для регистрации
+                  errorMsg:
+                    type: string
+                    description: "Описание ошибки"
+  /api/shop/v2/user/profile:
+    get:
+      tags:
+        - "Профиль"
+      summary: "Получить текущий профиль пользователя"
+      security:
+        - OsmoseToken: []
+      responses:
+        200:
+          description: "Успешно"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        403:
+          description: "Невалидный токен"
+  /api/shop/v2/user/register:
+    post:
+      tags:
+        - "Профиль"
+      summary: "Регистрация нового пользователя"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: "user@example.com"
+                password:
+                  type: string
+                  example: "12345678Q"
+                  description: >
+                    Пароль. Требования:
+                      * не менее 8 символов,
+                      * без пробелов,
+                      * содержит латинских буквы
+                      * содержит по крайней мере одну цифру
+                name:
+                  type: string
+                  example: "ВАСИЛИЙ"
+                  description: "Имя капсом"
+                lastName:
+                  type: string
+                  example: "КАРПОВ"
+                  description: "Фамилия капсом"
+                gender:
+                  type: string
+                  description: "Пол"
+                  enum: [MALE, FEMALE]
+                phone:
+                  type: string
+                  description: "Мобильный номер телефона"
+                  example: "P:RU;1111111111"
+              required:
+                 - email
+                 - password
+                 - phone
+                 - name
+                 - lastName
+                 - gender
+      responses:
+        200:
+          description: "Результат регистрации"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    description: "Токен авторизации"
+                    type: string
+                    example: "JbduBVHI8dnbt7BVCYUike..."
+                  success:
+                    type: boolean
+                  cardNumber:
+                    type: integer
+                    description: "Номер карты пользователя"
+                    example: 2090780618128
+                  name:
+                    type: string
+                    description: "Польное имя"
+                    example: "Карпов Василий"
+                  error:
+                    type: string
+                    description: "Код ошибки"
+                    enum: [INTERNAL, INVALID_PAYLOAD]
+                  errorMsg:
+                    type: string
+                    description: "Описание ошибки"
+                    example: "Неправильный пароль"
+  /api/purchase-history/v1/orders:
+    get:
+      tags:
+        - "История заказов"
+      summary: "Получить историю заказов пользователя"
+      security:
+        - OsmoseToken: []
+      parameters:
+        - name: from
+          in: query
+          description: "Фильтр по дате заказа ОТ"
+          schema:
+            type: string
+          example: "2020-01-01T12:00:00"
+        - name: to
+          in: query
+          description: "Фильтр по дате заказа ДО"
+          schema:
+            type: string
+          example: "2020-01-02T12:00:00"
+        - name: channel
+          in: query
+          schema:
+            type: string
+            enum: [DIGITAL, PHYSICAL]
+          description: Тип заказа
+      responses:
+        200:
+          description: "Успешно"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                   card:
+                     type: integer
+                     description: Номер карты
+                     example: 2090780618981
+                   lastSync:
+                     type: string
+                     description: Последнее обновление
+                     example: "2020-05-01T12:00:00Z"
+                   history:
+                     type: array
+                     items:
+                       type: object
+                       properties:
+                        id:
+                          type: string
+                          description: Номер заказа
+                        status:
+                          type: string
+                          description: Статус заказа
+                          enum: [TERMINATED, STARTED, FINISHED, CANCELED, VOIDED, SUSPENDED, RESUMED, TOTALED, AUTHORIZED, PARTIALSHIP, SHIPPED, DELIVERED, RETURNED]
+                        channel:
+                          type: string
+                          description: Тип заказа. Онлайн или оффлайн
+                          enum: [DIGITAL, PHYSICAL]
+                        storeId:
+                          type: integer
+                          description: Код магазина
+                        storeLabel:
+                          type: string
+                          description: Название магазина
+                        total:
+                          type: number
+                          minimum: 0
+                          description: Стоимость заказа
+                        date:
+                          type: string
+                          description: Дата заказа
+        403:
+          description: Токен не действителен
+  /api/purchase-history/v1/orders/{id}:
+    get:
+      tags:
+        - "История заказов"
+      summary: "Состав заказа"
+      security:
+        - OsmoseToken: []
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Идентификатор заказа
+          schema:
+            type: string
+      responses:
+        200:
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    description: Идентификатор заказа
+                  status:
+                    type: string
+                    description: Статус заказа
+                    enum: [TERMINATED, STARTED, FINISHED, CANCELED, VOIDED, SUSPENDED, RESUMED, TOTALED, AUTHORIZED, PARTIALSHIP, SHIPPED, DELIVERED, RETURNED]
+                  channel:
+                    type: string
+                    description: Тип заказа. Онлайн или оффлайн
+                  storeId:
+                    type: string
+                    description: Код магазина
+                  storeLabel:
+                    type: string
+                    description: Название магазина
+                  total:
+                    type: integer
+                    description: Стоимость заказа
+                  date:
+                    type: string
+                    description: Дата заказа
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        modelId:
+                          type: integer
+                          description: Идентификатор модели. Опционально
+                        articleId:
+                          type: integer
+                          description: Идентификатор артикула. Опционально
+                        price:
+                          type: number
+                          minimum: 0
+                          description: Цена за единицу
+                        total:
+                          type: number
+                          minimum: 0
+                          description: Общая цена
+                        qty:
+                          type: integer
+                          minimum: 0
+                          description: Количество
+                        label:
+                          type: string
+                          description: Название товара
+                        itemId:
+                          type: string
+                          description: Код товара
+        403:
+          description: Токен не действителен
+  /api/v1/info:
+    get:
+      tags:
+        - "Приложение"
+      summary: Информация о бакенде
+      responses:
+        200:
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  minVersion:
+                    type: integer
+                    description: Минимальная поддерживаемая версия API
+                    example: 1
+                    deprecated: true
+                  maxVersion:
+                    type: integer
+                    description: Текущая версия API
+                    example: 3
+                    deprecated: true
+                  iosVersionMin:
+                    type: integer
+                    example: 3
+                  iosVersionCurrent:
+                    type: integer
+                    example: 3
+                  androidVersionMin:
+                    type: integer
+                    example: 1
+                  androidVersionCurrent:
+                    type: integer
+                    example: 2
+                  env:
+                    type: string
+                    description: Окружение
+                    enum: [DEV, PROD]
+  /api/v1/preferences/online-orders:
+    get:
+      tags:
+        - "Настройки пользователя"
+      security:
+        - OsmoseToken: []
+      summary: Получить список онлайн заказов с сайта
+      responses:
+        200:
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cardNumber:
+                    type: integer
+                    description: Номер карты
+                    example: 2090779261274
+                  orders:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          description: Номер заказа
+                          example: RUS3577231
+                        date:
+                          type: string
+                          description: Дата заказа
+                          example: "2020-06-02"
+                        total:
+                          type: number
+                          description: Полная стоимость
+                          example: 7254
+                        status:
+                          type: string
+                          description: Статус
+                          example: Отправлено
+        403:
+          description: Токен недействителен
+  /api/v1/preferences/online-orders/{id}:
+    get:
+      tags:
+        - "Настройки пользователя"
+      summary: Получить детальную информацию по заказу
+      security:
+        - OsmoseToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Идентификатор заказа
+          example: RUS3356363
+      responses:
+        200:
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    description: Идентификатор заказа
+                    example: RUS3356363
+                  date:
+                    type: string
+                    description: Дата заказа
+                    example: 01/05/2020
+                  deliveryName:
+                    type: string
+                    description: Название метода доставки
+                    example: Доставка курьером Почты России
+                  deliveryAddress:
+                    type: string
+                    description: адрес доставки
+                    example: ТЕСТЕРЗАКАЗОВ ТЕСТОВЫЙ Уличная 1 117485 Москва Москва Россия
+                  itemsPrice:
+                    type: integer
+                    description: Стоимость корзины
+                    example: 599
+                  deliveryPrice:
+                    type: integer
+                    description: Стоимость доставки
+                    example: 205
+                  totalPrice:
+                    type: integer
+                    description: Полная стоимость заказа
+                    example: 804
+                  items:
+                    type: array
+                    description: Корзина
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          description: Идентификатор артикула
+                          example: 1685489
+                        qty:
+                          type: integer
+                          description: Кол-во товара
+                          example: 1
+                        name:
+                          type: string
+                          description: Название позиции
+                          example: Подшлемник флисовый для взрослых FOUGANZA  
+                        price:
+                          type: integer
+                          description: Цена за штуку
+                          example: 599
+                        totalPrice:
+                          type: integer
+                          description: Цена полная
+                          example: 599
+                  estimatedShipmentDate:
+                    type: string
+                    description: Планируемая дата отправки
+                    example: 2020-05-03
+                  estimatedDeliveryDate:
+                    type: string
+                    description: Планируемая дата доставки
+                    example: 2020-05-04
+                  currentStatusId:
+                    type: integer
+                    description: Код статуса доставки
+                    example: 810
+                  currentStatus:
+                    type: string
+                    description: Статус доставки
+                    example: Доставлен
+                  trackNum:
+                    type: string
+                    description: Трек номер
+                    example: 80080348074075
+
+  /api/v1/preferences/wishlist:
+    get:
+      tags:
+        - Настройки пользователя
+      summary: Получить избранные артикулы (размеры) с сайта
+      security:
+        - OsmoseToken: []
+      responses:
+        200:
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cardNumber:
+                    type: integer
+                    description: Номер карты
+                    example: 2090779261274
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          description: Идентификатор артикула
+                          example: 2685255
+                        added:
+                          type: string
+                          description: Дата добавления
+                          example: "2020-06-02T12:01:27"
+        403:
+          description: Токен недействителен
+  /api/shop/v2/user/restorePassword:
+    post:
+      tags:
+        - "Профиль"
+      summary: "Отправить письмо на восстановление пароля"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  description: "Email Пользователя"
+                  example: "user@example.com"
+              required:
+                - email
+      responses:
+        400:
+          description: Невалидный запрос
+        202:
+          description: Успешно отправлено письмо восстановления пароля
+
+components:
+  securitySchemes:
+    OsmoseToken:
+      type: http
+      scheme: bearer
+  schemas:
+    Basket:
+      type: object
+      description: Корзина
+      properties:
+        cookies:
+          description: "Http куки для доступа через WebView"
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                example: JSESSIONID
+              domain:
+                type: string
+                example: "www.decathlon.ru"
+              path:
+                type: string
+                example: "/"
+              value:
+                type: string
+                example: "8G1AA9B8AEB3FB0F122BE440FA723823.frt545"
+        items:
+          description: "Текущий состав корзины"
+          type: array
+          items:
+            $ref: "#/components/schemas/BasketEntry"
+        total:
+          description: "Стоимость корзины"
+          type: integer
+          example: 1999
+        url:
+          description: "Ссылка на страницу оформления заказа"
+          type: string
+          example: "https://ww.decathlon.ru/ru/shippingmode"
+    BasketEntry:
+      type: object
+      description: "Строка корзины"
+      properties:
+        id:
+          type: integer
+          description: "Идентификатор артикула"
+          example: 2902848
+        qty:
+          type: integer
+          description: "Кол-во"
+          example: 1
+        price:
+          type: integer
+          description: "Цена за штуку с учетом скидок"
+          example: 1999
+    Address:
+      type: object
+      description: "Адрес доставки"
+      properties:
+        city:
+          type: string
+          example: "Томск"
+          description: Город
+        street:
+          type: string
+          example: Ленина
+          description: Улица
+        index:
+          type: integer
+          example: 111000
+          description: Индекс
+        house:
+          type: string
+          description: Дом
+          example: 2
+        housing:
+          type: string
+          description: Корпус
+        building:
+          type: string
+          description: Строение
+        apt:
+          type: string
+          description: Квартира
+          example: 11
+        extra:
+          type: string
+          description: Дополнительная информация
+      required:
+        - city
+        - index
+        - house
+        - street
+        - apt
+    Personal:
+      type: object
+      description: Личная информация
+      properties:
+        name:
+          type: string
+          example: Василий
+          description: Имя
+        lastName:
+          type: string
+          example: Карпов
+          description: Фамилия
+        birthDay:
+          type: string
+          example: "1980-01-01"
+          description: День рождения
+        gender:
+          type: string
+          enum: [MALE, FEMALE]
+          description: Пол
+      required:
+        - name
+        - lastName
+    Profile:
+      type: object
+      description: Профиль
+      properties:
+        cardNumber:
+          type: integer
+          example: 2090780618981
+          description: Номер карты лояльности
+        mobilePhone:
+          type: string
+          example: RU;9061882299
+          description: Мобильный телефон с кодом страны
+        landlinePhone:
+          type: string
+          example: RU;4953301911
+          description: Городской телефон с кодом страны
+        name:
+          type: string
+          example: Василий
+          description: Имя
+        lastName:
+          type: string
+          example: Карпов
+          description: Фамилия
+        birthDay:
+          type: string
+          example: "1980-01-01"
+          description: День рождения
+        gender:
+          type: string
+          enum: [MALE, FEMALE]
+          description: Пол
+        city:
+          type: string
+          example: "Томск"
+          description: Город
+        index:
+          type: integer
+          example: 111000
+          description: Индекс
+        house:
+          type: string
+          description: Дом
+          example: 2
+        housing:
+          type: string
+          description: Корпус
+        building:
+          type: string
+          description: Строение
+        apt:
+          type: string
+          description: Квартира
+          example: 11
+        extra:
+          type: string
+          description: Дополнительная информация по доставке
+    ProfileUpdate:
+      type: object
+      description: Запрос на обновление профиля
+      properties:
+        mobilePhone:
+          type: string
+          example: RU;9061882299
+          description: Мобтльный телефон с кодом страны
+        landlinePhone:
+          type: string
+          example: RU;4953301911
+          description: Городской телефон с кодом страны
+        address:
+          $ref: "#/components/schemas/Address"
+        personal:
+          $ref: "#/components/schemas/Personal"

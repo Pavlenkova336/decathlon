@@ -1,0 +1,1460 @@
+openapi: 3.0.0
+info:
+  description: "Сервис каталога товаров для мобильного приложения Декатлон."
+  version: "1.0.0"
+  title: "MotherApp product catalog"
+  contact:
+    email: "roman.khabibullin@decathlon.com"
+servers:
+  - url: https://api.dev.decathlon.ru/mobilecatalog
+    description: "DEV environment"
+  - url: https://api.decathlon.ru/mobilecatalog
+    description: "PROD environment"
+  - url: http://localhost:9000
+    description: "Local environment"
+tags:
+- name: "Товары"
+  description: "Артикулы, Модели, Супермодели"
+  externalDocs:
+    description: "Мастер данные SPID"
+    url: "http://spid.decathlon.com"
+- name: "Категории"
+  description: "Структура каталога с сайта"
+- name: "Маркетинг"
+  description: "Баннеры, акции с сайта"
+- name: "Магазины"
+  description: "Оффлайн магазины Декатлон"
+
+paths:
+  /api/stores/v1/search:
+    get:
+      tags:
+        - Магазины
+      summary: Полный список магазинов
+      parameters:
+        - $ref: '#/components/parameters/StoreStatuses'
+        - $ref: '#/components/parameters/StoreFeatures'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/PageNumber'
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StoresPage"
+          description: Успешно
+
+  /api/stores/v1/closest:
+    get:
+      tags:
+        - Магазины
+      summary: Поиск ближайшего магазина
+      description: Дальность определяется по геопозиции пользователя, если она передана в параметрах. Либо от центра города пользователя, который определянтся по IP
+      parameters:
+        - name: origin.lat
+          schema:
+            type: number
+          in: query
+          description: Широта центра поиска
+        - name: origin.lon
+          schema:
+            type: number
+          in: query
+          description: Долгота центра поиска
+        - name: distance
+          schema:
+            type: number
+            default: 50000
+          in: query
+          description: Ограничение дальности до магазина в метрах
+        - $ref: '#/components/parameters/StoreFeatures'
+        - $ref: '#/components/parameters/StoreStatuses'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/PageNumber'
+      responses:
+        200:
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StoreDistPage"
+  /api/stores/v1/{id}:
+    get:
+      tags:
+        - Магазины
+      summary: Информация о магазине
+      parameters:
+        - name: id
+          in: path
+          description: Идентификатор магазина
+          schema:
+            type: integer
+          required: true
+      responses:
+        200:
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Store'
+  /api/products/v1/items/search:
+    get:
+      tags:
+      - "Товары"
+      summary: "Искать артикулы по критериям"
+      parameters:
+      - name: "ids"
+        in: "query"
+        description: "Список артикулов"
+        schema:
+          type: "array"
+          items:
+            type: "integer"
+      - $ref: '#/components/parameters/ModelFilterShowBroken'
+      - name: "sort"
+        in: "query"
+        description: >
+          Поле сортировки:
+           * `PRICE` по конечной цене
+           * `REVIEW` по рейтингу
+           * `NATURAL` Как в параметре ids
+        schema:
+          default: NATURAL
+          type: "string"
+          enum: [PRICE, REVIEW, NATURAL]
+      - $ref: '#/components/parameters/SortDir'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/PageNumber'
+      responses:
+        "200":
+          description: "Success"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemsPage"
+  /api/products/v1/models/search:
+    get:
+      tags:
+      - "Товары"
+      summary: "Искать модели по критериям"
+      parameters:
+      - $ref: '#/components/parameters/ModelFilterIds'
+      - $ref: '#/components/parameters/ModelFilterCategories'
+      - $ref: '#/components/parameters/ModelFilterColors'
+      - $ref: '#/components/parameters/ModelFiltersGroups'
+      - $ref: '#/components/parameters/ModelFilterGenders'
+      - $ref: '#/components/parameters/ModelFilterSizes'
+      - $ref: '#/components/parameters/ModelFilterFeatures'
+      - $ref: '#/components/parameters/ModelFilterQuery'
+      - $ref: '#/components/parameters/ModelFilterShowBroken'
+      - $ref: '#/components/parameters/ModelFilterShowUnavailable'
+      - $ref: '#/components/parameters/ModelFields'
+      - $ref: '#/components/parameters/SuperModelFields'
+      - name: "sort"
+        in: "query"
+        description: >
+          Поле сортировки:
+           * `PRICE` по конечной цене
+           * `REVIEW` по рейтингу
+           * `DEFAULT` по маркетинговым критериям
+        schema:
+          type: "string"
+          enum: [PRICE, REVIEW, DEFAULT]
+      - $ref: '#/components/parameters/SortDir'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/PageNumber'
+      responses:
+        "200":
+          description: success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelsPage"
+  /api/products/v1/suggest:
+    get:
+      summary: Подсказки по частичному совпадению строки
+      tags:
+        - Товары
+      parameters:
+        - name: query
+          in: query
+          description: Подстрока для поиска. Минимум 2 символа. Максимум 128
+          schema:
+            type: string
+            example: футб
+        - name: modelCount
+          in: query
+          schema:
+            type: integer
+            default: 5
+          description: Кол-во товаров в выдаче
+        - name: groupCount
+          in: query
+          schema:
+            type: integer
+            default: 5
+          description: Кол-во типов в выдаче
+        - name: categoryCount
+          in: query
+          schema:
+            type: integer
+            default: 5
+          description: Кол-во категорий в выдаче
+      responses:
+        200:
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  models:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ModelPreview'
+                  categories:
+                    type: array
+                    description: Подходящие категории
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          description: Идентификатор категории
+                          example: 216829
+                        name:
+                          type: string
+                          description: Название категориии
+                          example: Одежда для охоты
+                        path:
+                          type: string
+                          description: Длинное название
+                          example: "Охота / Одежда для охоты"
+                  groups:
+                    type: array
+                    description: Подходящие типы товаров
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          description: Идентификатор типа товара
+                          example: 25018
+                        name:
+                          type: string
+                          example: Футболка-поло
+                          description: Название типа товара
+
+  /api/products/v1/models/search/facet:
+    get:
+      tags:
+        - "Товары"
+      summary: "Фильтры для дальнейшего поиска моделей"
+      parameters:
+        - $ref: '#/components/parameters/ModelFilterIds'
+        - $ref: '#/components/parameters/ModelFilterCategories'
+        - $ref: '#/components/parameters/ModelFilterColors'
+        - $ref: '#/components/parameters/ModelFiltersGroups'
+        - $ref: '#/components/parameters/ModelFilterGenders'
+        - $ref: '#/components/parameters/ModelFilterFeatures'
+        - $ref: '#/components/parameters/ModelFilterSizes'
+        - $ref: '#/components/parameters/ModelFilterQuery'
+        - $ref: '#/components/parameters/ModelFilterShowBroken'
+        - $ref: '#/components/parameters/ModelFilterShowUnavailable'
+      responses:
+        "200":
+          description: success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelsFacet"
+        "204":
+          description: Пустой фильтр
+  /api/products/v1/models/search/count:
+    get:
+      tags:
+      - "Товары"
+      summary: "Количество моделей подходящих по критерия"
+      parameters:
+        - $ref: '#/components/parameters/ModelFilterIds'
+        - $ref: '#/components/parameters/ModelFilterCategories'
+        - $ref: '#/components/parameters/ModelFilterColors'
+        - $ref: '#/components/parameters/ModelFiltersGroups'
+        - $ref: '#/components/parameters/ModelFilterGenders'
+        - $ref: '#/components/parameters/ModelFilterSizes'
+        - $ref: '#/components/parameters/ModelFilterFeatures'
+        - $ref: '#/components/parameters/ModelFilterShowBroken'
+        - $ref: '#/components/parameters/ModelFilterShowUnavailable'
+        - $ref: '#/components/parameters/ModelFilterQuery'
+      responses:
+        200:
+          description: "success"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                    example: 23
+                    description: "Количество моделей"
+  /api/products/v1/models/popular:
+    get:
+      tags:
+      - "Товары"
+      summary: "Рекомендации товаров для главного экрана"
+      responses:
+        200:
+          description: "success"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ModelPreview"
+
+  /api/products/v1/models/{modelId}:
+    get:
+      tags:
+      - "Товары"
+      summary: "Информация о модели"
+      parameters:
+      - $ref: '#/components/parameters/ModelId'
+      - $ref: '#/components/parameters/ModelFields'
+      - $ref: '#/components/parameters/SuperModelFields'
+      responses:
+        200:
+          description: "success"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Model"
+        404:
+          description: "Не найдено"
+  /api/products/v1/models/{modelId}/suggestions:
+    get:
+      tags:
+      - "Товары"
+      summary: "Сопуствующие товары к модели"
+      parameters:
+      - $ref: "#/components/parameters/ModelId"
+      responses:
+        200:
+          description: "success"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    description: "Идентификатор модели"
+                    example: 8501780
+                  xsell:
+                    type: array
+                    description: "Похожие товары"
+                    items:
+                      $ref: "#/components/schemas/ModelPreview"
+                  upsell:
+                    type: array
+                    description: "Сопутствующие товары"
+                    items:
+                      $ref: "#/components/schemas/ModelPreview"
+
+  /api/products/v1/models/{modelId}/reviews:
+    get:
+      tags:
+      - "Товары"
+      summary: "Отзывы о (супер)модели"
+      parameters:
+      - $ref: '#/components/parameters/ModelId'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/SortDir'
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum: [DATE, NOTE, LIKES]
+        description: >
+          Направление сортировки:
+            * `DATE` дата публикации
+            * `NOTE` оценка
+            * `LIKES` полезность другим пользователям
+      responses:
+        200:
+          description: success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  modelId:
+                    type: integer
+                    description: "Идентификатор модели"
+                    example: 8354268
+                  content:
+                    type: array
+                    description: "Отзывы"
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          description: "Идентификатор отзыва"
+                          example: 12095289
+                        title:
+                          type: string
+                          description: "Заголовок"
+                          example: "Отклеилась подошва через неделю."
+                        text:
+                          type: string
+                          description: "Основной текст"
+                          example: "Здравствуйте, заказывал эти кроссовки через онлайн магазин, получил 7 мая, впервые одел 12 мая"
+                        country:
+                          type: string
+                          description: "Регион пользователя"
+                          example: "RU"
+                        name:
+                          type: string
+                          description: "Имя пользователя"
+                          example: "Иван"
+                        cons:
+                          type: string
+                          description: "Недостатки"
+                          example: "Маломерки"
+                        pros:
+                          type: string
+                          example: "Удобно пинать"
+                          description: "Достоинства"
+                        note:
+                          type: integer
+                          description: "Оценка товара пользователем. От 1 до 5"
+                          example: 3
+                        recommend:
+                          type: boolean
+                          description: "Товар понравился"
+                        voteUp:
+                          type: integer
+                          description: "Кол-во пользователей посчитавших отзыв полезным"
+                          example: 87
+                        published:
+                          type: string
+                          description: "Дата публикации"
+                          example: "2020-05-23T14:17:38+00:00"
+                        answer:
+                          type: string
+                          description: "Ответ бренда. Опционально"
+                          example: "\nЗдравствуйте, Иван.\nСпасибо, что оставили отзыв о ботинках NH 100."
+  /api/categories/v1/root:
+    get:
+      tags:
+      - "Категории"
+      summary: "Каталог по видам спорта"
+      responses:
+        200:
+          description: success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      description: "Идентификатор категории"
+                      example: 173303
+                    icon:
+                      type: string
+                      description: "Иконка спорта JPEG"
+                      example: "https://storage.yandexcloud.net/motherappassets/ff83ed2b-29fc-468a-99bc-dfb3ec10c5a3"
+                    name:
+                      type: string
+                      description: "Название"
+                      example: "Аквааэробика"
+                    packShot:
+                      type: string
+                      description: "Изображение категории каталога JPEG"
+                      example: "https://storage.yandexcloud.net/motherappassets/b33e371f-7ba4-42b0-b990-388c005885f2"
+                    children:
+                      type: array
+                      description: "Вложенные категории"
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            description: "Идентификатор категории"
+                            example: 173305
+                          name:
+                            type: string
+                            description: "Название категории"
+                            example: "Аксессуары для аквааэробики"
+  /api/categories/v1/seasonal:
+    get:
+      tags:
+      - "Категории"
+      summary: "Сезонные категории каталога"
+      responses:
+        200:
+          description: success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      description: "Идентификатор категории"
+                      example: 96757
+                    name:
+                      type: string
+                      description: "Название категории"
+                      example: "Верховая езда"
+                    packShot:
+                      type: string
+                      description: "Изображение категории каталога JPEG"
+                      example: "https://storage.yandexcloud.net/motherappassets/c907c4bd-b8d6-4c0a-9f90-2141d50544a4"
+  /api/categories/v1/home:
+      get:
+        tags:
+        - "Категории"
+        summary: "Категории начального экрана"
+        responses:
+          200:
+            description: success
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        description: "Идентификатор категории"
+                        example: 99470
+                      code:
+                        type: string
+                        description: "Тип категории"
+                        enum: [MALES, FEMALES, KIDS, ECO, SALE]
+                      children:
+                        type: array
+                        description: "Подкатегории"
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: integer
+                              description: "Идентификатор категории"
+                              example: 221794
+                            name:
+                              type: string
+                              description: "Название"
+                              example: "Одежда для девочек"
+                            packShot:
+                              type: string
+                              description: "Изображение"
+                              example: "https://storage.yandexcloud.net/motherappassets/2793f9fa-1213-432f-b32b-823c0233527d"
+  /api/categories/v1/sports:
+      get:
+        tags:
+        - "Категории"
+        summary: "Виды спорта"
+        responses:
+          200:
+            description: success
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        description: "Идентификатор"
+                        example: 273915
+                      name:
+                        type: string
+                        description: "Название спорта"
+                        example: "АКВААЭРОБИКА"
+                      icon:
+                        type: string
+                        description: "Иконка спорта JPEG"
+                        example: "https://storage.yandexcloud.net/motherappassets/ff83ed2b-29fc-468a-99bc-dfb3ec10c5a3"
+  /api/categories/v1/{id}/children:
+      get:
+        tags:
+        - "Категории"
+        summary: "Вложенные разделы категории"
+        parameters:
+        - $ref: '#/components/parameters/CategoryId'
+        responses:
+          200:
+            description: success
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      description: "Идентификатор категории"
+                      example: "226869"
+                    children:
+                      type: array
+                      description: "Подкатегории"
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            description: "Идентификатор категории"
+                            example: "226871"
+                          name:
+                            type: string
+                            description: "Название"
+                            example: "Пояса для боевых искусств"
+  /api/categories/v1/{id}/facet:
+      get:
+        tags:
+        - "Категории"
+        summary: "Фильтры в разделе каталога"
+        parameters:
+        - $ref: '#/components/parameters/CategoryId'
+        responses:
+          200:
+            description: success
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      description: "Идентификатор категории"
+                      example: 273915
+                    filters:
+                      type: array
+                      description: "Параметры фильтра"
+                      items:
+                        type: object
+                        properties:
+                          code:
+                            type: string
+                            description: "Код параметра"
+                            enum: [genders, groups, colors, size]
+                          name:
+                            type: string
+                            description: "Название параметра"
+                            example: "Пол"
+                          items:
+                            type: array
+                            description: "Значения параметра"
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: integer
+                                  description: "Идентификатор значения"
+                                  example: 2
+                                name:
+                                  type: string
+                                  description: "Название значения"
+                                  example: "для мужчин"
+                                count:
+                                  type: integer
+                                  description: "Кол-во моделей соответствующие фильтру"
+                                  example: 9
+  /api/marketing/v1/banners:
+    get:
+      tags:
+        - "Маркетинг"
+      summary: "Баннеры на разделы каталога"
+      deprecated: true
+      responses:
+        200:
+          description: success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Banner"
+  /api/marketing/v2/banners:
+    get:
+      tags:
+        - "Маркетинг"
+      summary: "Баннеры"
+      responses:
+        200:
+          description: success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Banner"
+components:
+  schemas:
+    ModelsFacet:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: Кол-во результатов поиска
+          example: 87
+        price:
+          type: object
+          properties:
+            min:
+              type: integer
+              description: Минимальная цена
+              example: 399
+            max:
+              type: integer
+              description: Максимальная цена
+              example: 17999
+        filters:
+          type: array
+          items:
+            type: object
+            properties:
+              code:
+                type: string
+                description: Код параметра фильтра
+                enum: [groups, sizes, colors, genders, features]
+              items:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      description: Название группы
+                      example: Кол-во мест
+                    opts:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            description: Идентификатор значения
+                            example: 3
+                          cnt:
+                            type: integer
+                            description: Кол-во моделей, попадающих под фильтр
+                            example: 14
+                          name:
+                            type: string
+                            description: Название значения
+                            example: Продвинутый
+                          hex:
+                            type: string
+                            description: hex код цвета
+                            example: "#DB002C"
+
+    Banner:
+      type: object
+      properties:
+        link:
+          type: string
+          description: "Оригинальная ссылка с баннера"
+          example: "https://www.decathlon.ru/C-1167432-velosipedy-samokaty-roliki?opeco=opeco:sports_on_wheels_mob&type=opeco&click_slider"
+        image:
+          type: string
+          description: "Изображение"
+          example: "https://www.decathlon.ru/content/website/New_backgrounds/HP-banners/wheels2-mob.jpg"
+        title:
+          type: string
+          description: "Название ссылки"
+          example: "Велосипеды, самокаты, ролики"
+        categoryId:
+          type: integer
+          description: "Идентификатор категории. Опционально"
+          example: 1167432
+        categoryCode:
+          type: string
+          description: "Код категории. Опционально"
+          example: "/C-1167432-velosipedy-samokaty-roliki"
+    Item:
+      type: "object"
+      properties:
+        id:
+          type: "integer"
+          example: 2523966
+          description: "Идентификатор артикула"
+        name:
+          type: "string"
+          example: "СИЛИКОНОВАЯ ШАПОЧКА ДЛЯ ПЛАВАНИЯ С ПРИНТОМ ФИОЛЕТОВАЯ"
+          description: "Название модели"
+        size:
+          type: "string"
+          example: "Единый"
+          description: "Читаемый размер"
+        brand:
+          type: "string"
+          description: "Бренд"
+        image:
+          type: "string"
+          description: "Главное изображение"
+        price:
+          type: "integer"
+          example: 1999
+          description: "Обычная цена"
+        modelId:
+          type: "integer"
+          example: 8491734
+          description: "Идентификатор модели"
+        promoPrice:
+          type: "integer"
+          example: 0
+          description: "Акционная цена или 0"
+    ItemsPage:
+      type: "object"
+      properties:
+        content:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Item"
+    ModelPreview:
+      type: object
+      properties:
+        id:
+          type: "integer"
+          example: 8491734
+          description: "Идентификатор модели"
+        dsm:
+          type: "integer"
+          example: 10883
+          description: "Идентификатор супермодели"
+        url:
+          type: "string"
+          example: "https://www.decathlon.ru/botinki-mh100-h-id_8383908.html"
+          description: "Ссылка на сайте"
+        name:
+          type: "string"
+          example: "Ботинки мужские для горных походов Mh100"
+          description: "Название"
+        brand:
+          $ref: "#/components/schemas/Brand"
+        image:
+          $ref: "#/components/schemas/MainImage"
+        price:
+          type: "integer"
+          example: 1999
+          description: "Обычная цена"
+        promoPrice:
+          type: "integer"
+          example: 1699
+          description: "Акционная цена или 0"
+    Model:
+      type: "object"
+      properties:
+        id:
+          type: "integer"
+          example: 8491734
+          description: "Идентификатор модели"
+        dsm:
+          type: "integer"
+          example: 10883
+          description: "Идентификатор супермодели"
+        url:
+          type: "string"
+          example: "https://www.decathlon.ru/botinki-mh100-h-id_8383908.html"
+          description: "Ссылка на сайте"
+        name:
+          type: "string"
+          example: "Ботинки мужские для горных походов Mh100"
+          description: "Название"
+        brand:
+          $ref: "#/components/schemas/Brand"
+        image:
+          $ref: "#/components/schemas/MainImage"
+        price:
+          type: "integer"
+          example: 1999
+          description: "Обычная цена"
+        promoPrice:
+          type: "integer"
+          example: 1699
+          description: "Акционная цена или 0"
+        images:
+          type: "array"
+          items:
+            type: "string"
+          example: ["https://contents.mediadecathlon.com/p1662985/k$07b3b7ec36871e9fa9c98840ce30fedc/image.jpg",
+          "https://contents.mediadecathlon.com/p1568398/k$a97315d4b9c10b320bf4a265ad0803dd/image.jpg"]
+          description: "Изображения"
+        notes:
+          type: "array"
+          items:
+            type: "integer"
+          example: [0, 12, 34, 44, 11]
+          description: "Количество звезд"
+        parts:
+          $ref: "#/components/schemas/Parts"
+        texts:
+          type: "object"
+          properties:
+            test:
+              type: "string"
+              description: "Тестирование"
+              example: "Все модели протестированы пользователями"
+            guarantee:
+              type: "string"
+              description: "Срок гарантии"
+              example: "2 года"
+            designedFor:
+              type: "string"
+              description: "Разработано для"
+              example: "Наша команда любителей ГОРНЫХ ПОХОДОВ в разработала эти ботинки"
+            webCatchLine:
+              type: "string"
+              description: "Краткое описание товара"
+              example: "В этой обуви есть все, что нужно для комфорта во время горных походов"
+            storageAdvice:
+              type: "string"
+              description: "Советы по хранению"
+              example: "Хранить в проветриваемом месте вдали от источников света и влаги."
+            productPlusPoint:
+              type: "string"
+              description: "Достоинства кратко"
+              example: "Сцепление, комфорт и защита."
+            weightContext:
+              type: "string"
+              description: "Состав набора"
+              example: "Очки и футляр"
+        models:
+          type: "array"
+          description: "Другие вариации моделей"
+          items:
+            type: "object"
+            properties:
+              id:
+                type: integer
+                description: "Идентификатор модели"
+                example: 8383908
+              hex:
+                type: string
+                description: "Цвет вариации в HEX"
+                example: "#091111"
+              img:
+                type: string
+                description: "Главное изображение"
+                example: "https://contents.mediadecathlon.com/p1662985/k$07b3b7ec36871e9fa9c98840ce30fedc/image.jpg"
+              name:
+                type: string
+                description: "Название цвета"
+                example: "Угольный Серый"
+        filters:
+          type: "array"
+          description: "Характеристики для сравнений"
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                description: "Название характеристики"
+                example: "ПРОДОЛЖИТЕЛЬНОСТЬ"
+              type_id:
+                type: integer
+                description: "Идентификатор типа"
+                example: 8
+              value:
+                type: string
+                description: "Значение характеристики"
+                example: "Короткая Продолжительность"
+              value_id:
+                type: integer
+                description: "Идентификатор значения"
+                example: 33
+              group_id:
+                type: integer
+                description: >
+                  Идентификатор группы характеристик:
+                    * `1` Характеристики товара
+                    * `2` Целевая аудитория пользователей
+                    * `3` Условия практики
+                example: 2
+        laundry:
+          description: "Символы стирки"
+          type: array
+          items:
+            type: object
+            properties:
+              icon:
+                type: string
+                example: "https://contents-spid.decathlon.net/caresymbols/v1/wash/C.jpg"
+                description: "ссылка на иконку"
+              title:
+                type: string
+                example: "Только ручная стирка"
+                description: "Название иконки"
+        articles:
+          description: "Все артикулы. Упорядочено"
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                description: "Идентификатор артикула"
+                example: 2568049
+              size:
+                type: string
+                description: "Название размера"
+                example: "38"
+              inStock:
+                type: boolean
+                description: "Наличие онлайн"
+        benefits:
+          description: "Преимущества"
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                description: "Идентификатор преимущества"
+                example: 254
+              text:
+                type: string
+                description: "Поясняющий текст"
+                example: "Каучуковая подошва с отличным сцеплением для твердого и мягкого грунта."
+              image:
+                type: string
+                description: "Изображение. Опционально"
+                example: "https://contents-spid.decathlon.net/pictoBu/5b/04/5b040028-2ed8-454c-8d1c-a274abe812e1.jpg"
+              notes:
+                type: integer
+                description: "Деления рейтинга. Опционально"
+                example: 3
+              title:
+                type: string
+                description: "Группа преимуществ"
+                example: "Амортизация"
+        characteristics:
+          description: "Характеристики"
+          type: array
+          items:
+            type: object
+            properties:
+              text:
+                type: string
+                description: "Описание"
+                example: "Для походов рекомендуется выбрать обувь на размер больше"
+              title:
+                type: string
+                description: "Заголовок"
+                example: "Какой размер выбрать?"
+        care:
+          description: "Советы по уходу"
+          type: array
+          items:
+            type: string
+          example: ["Стирать в холодной воде"]
+    Parts:
+      type: "array"
+      description: "Состав"
+      items:
+        type: "object"
+        properties:
+          name:
+            description: "Название части"
+            example: "Подошва"
+          meterials:
+            description: "Материалы"
+            example: ["50% Полиэстер", "50% Полиуретан"]
+            type: "array"
+            items:
+              type: "string"
+    ModelsPage:
+      type: "object"
+      properties:
+        content:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Model"
+    MainImage:
+      type: "object"
+      properties:
+        link:
+          type: string
+          description: "Ссылка"
+          example: "https://contents.mediadecathlon.com/p1662985/k$07b3b7ec36871e9fa9c98840ce30fedc/image.jpg"
+      description: "Главное изображение"
+    Brand:
+      type: "object"
+      description: "Бренд"
+      properties:
+        name:
+          type: "string"
+          description: "Название бренда"
+          example: "QUECHUA"
+        image:
+          type: "string"
+          description: "Логотип бренда. Опционально"
+    Store:
+      type: object
+      description: Магазин
+      properties:
+        id:
+          type: integer
+          description: Идентификатор
+          example: 399
+        name:
+          type: string
+          description: Название
+          example: Авиапарк
+        features:
+          $ref: '#/components/schemas/StoreFeatures'
+        location:
+          $ref: '#/components/schemas/StoreLocation'
+        hours:
+          $ref: '#/components/schemas/StoreHours'
+        status:
+          $ref: '#/components/schemas/StoreStatus'
+        contacts:
+          $ref: '#/components/schemas/StoreContacts'
+        texts:
+          $ref: '#/components/schemas/StoreTexts'
+        city:
+          type: string
+          description: Регион
+          example: Москва и область
+    StoreStatus:
+      type: string
+      description: >
+        Режим работы магазина:
+          * `OPENED` Открыт торговый зал
+          * `DELIVERY_POINT` Только выдвча заказов
+          * `TEMP_CLOSED` Временно закрыт
+          * `PERM_CLOSED` Закрыт
+      enum: [OPENED, DELIVERY_POINT, TEMP_CLOSED, PERM_CLOSED]
+    StoreHours:
+      type: array
+      items:
+        type: array
+        items:
+          type: integer
+      description: Часы работы по дням
+      example: [[1000, 2200],[1000, 2200],[1000, 2200],[1000, 2200],[1000, 2200],[1000, 2200],[1000, 2200]]
+    StoreLocation:
+      type: object
+      properties:
+        lat:
+          type: number
+          description: Широта
+          example: 55.78919
+        lon:
+          type: number
+          description: Долгота
+          example: 37.534001
+    StoreFeatures:
+      type: array
+      description: >
+        Особенности и сервисы магазина:
+          * `SERVICE` Сервис по ремонту
+          * `EXT_SERVICE` Мастерская
+          * `BATTERY_CAN` Переработка для переработки элементов питания
+      items:
+        type: string
+        enum: [SERVICE, EXT_SERVICE, BATTERY_CAN]
+    StoreTexts:
+      type: object
+      additionalProperties:
+        type: string
+      properties:
+        generic:
+          type: string
+          example: доступно бронирование, экспресс-доставка и доставка со склада
+        schedule:
+          type: string
+          example: ежедневно с 10:00 до 22:00
+    StoreContacts:
+      type: object
+      description: Контакты и ссылки
+      properties:
+        WEB:
+          type: string
+          description: Ссылка на сайт
+          example: https://www.decathlon.ru/ru/magazin/sport-magazin-dekatlon-aviapark-MS_0070088500885.html
+        PHONE:
+          type: string
+          example: 8 (495) 642-05-86
+          description: Основной телефон
+        ALT_PHONE:
+          type: string
+          description: Дополнительный телефон
+          example: 8 (962) 926-02-10
+        ADDRESS:
+          type: string
+          description: Адрес
+          example: ул. Ходынский бульвар, 4, ТРЦ «Авиапарк»
+        BOT_PHONE:
+          type: string
+          description: Телефон для смс и сообщений
+          example: 8 (962) 926-02-10
+        VK:
+          type: string
+          description: Ссылка Вконтакте
+          example: https://vk.com/decathlon_domodedovo
+        WHATSAPP:
+          type: string
+          description: Чат в WhatsApp
+          example: https://wa.me/79652612633
+        VIBER:
+          type: string
+          description: Сообщение в Viber
+          example: viber://chat?number=79629260210
+        INSTAGRAM:
+          type: string
+          description: Ссылка в Instagram
+          example: https://www.instagram.com/decathlon.aviapark/
+        TELEGRAM:
+          type: string
+          description: Чат в Телеграм
+          example: 79629260210
+    StoresPage:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/Store"
+        total:
+          type: integer
+          example: 14
+          description: Общее кол-во
+    StoreDistPage:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            type: object
+            description: Магазин с удаленностью
+            properties:
+              id:
+                type: integer
+                description: Идентификатор
+                example: 399
+              name:
+                type: string
+                description: Название
+                example: Авиапарк
+              features:
+                $ref: '#/components/schemas/StoreFeatures'
+              location:
+                $ref: '#/components/schemas/StoreLocation'
+              hours:
+                $ref: '#/components/schemas/StoreHours'
+              status:
+                $ref: '#/components/schemas/StoreStatus'
+              contacts:
+                $ref: '#/components/schemas/StoreContacts'
+              texts:
+                $ref: '#/components/schemas/StoreTexts'
+              city:
+                type: string
+                description: Регион
+                example: Москва и область
+              distance:
+                type: number
+                description: Удаленность в метрах
+                example: 2385.3
+        total:
+          type: integer
+          example: 12
+          description: Общее кол-во
+  parameters:
+    StoreStatuses:
+      name: statuses
+      schema:
+        type: array
+        items:
+          type: string
+          enum: [OPENED, DELIVERY_POINT, TEMP_CLOSED]
+      in: query
+      description: >
+        Фильтр по статусу магазина:
+          * `OPENED` Открыт торговый зал
+          * `DELIVERY_POINT` Пункт выдачи
+          * `TEMP_CLOSED` Временно закрыт
+    StoreFeatures:
+      name: features
+      schema:
+        type: array
+        items:
+          type: string
+          enum: [SERVICE, EXT_SERVICE, BATTERY_CAN]
+      in: query
+      description: >
+        Фильтр повозможностям:
+          * `SERVICE` Ремонт
+          * `EXT_SERVICE` Мастерская
+          * `BATTERY_CAN` Сбор отработанных батарей
+    PageSize:
+      name: size
+      schema:
+        type: integer
+        default: 10
+      in: query
+      description: Размер страницы
+    PageNumber:
+      name: page
+      schema:
+        type: integer
+        default: 0
+      in: query
+      description: Номер страницы. Начинается с 0
+    SortDir:
+      name: "dir"
+      in: "query"
+      description: >
+        Направление сортировки:
+          * `ASC` по возрастанию
+          * `DESC` по убыванию
+      schema:
+        default: ASC
+        type: "string"
+        enum: [ASC, DESC]
+    ModelFilterShowBroken:
+      name: "showBroken"
+      in: "query"
+      description: "Показывать проблемные модели"
+      schema:
+        default: false
+        type: "boolean"
+    ModelFilterIds:
+      name: "ids"
+      in: "query"
+      description: "Список моделей"
+      schema:
+        type: "array"
+        items:
+          type: "integer"
+    ModelFilterCategories:    
+      name: "categories"
+      in: "query"
+      description: "Список категорий где искать"
+      schema:
+        type: "array"
+        items:
+          type: "integer"
+    ModelFilterQuery:
+      name: query
+      in: query
+      description: Текстовый запрос
+      schema:
+        type: string
+        example: Гантели
+    ModelFilterColors:
+      name: "colors"
+      in: "query"
+      description: "Список цветов"
+      schema:
+        type: "array"
+        items:
+          type: "integer"
+    ModelFilterGenders:
+      name: "genders"
+      in: "query"
+      description: "Список полов"
+      schema:              
+        type: "array"
+        items:
+          type: "integer"
+    ModelFiltersGroups:
+      name: "groups"
+      in: "query"
+      description: "Список типов товара"
+      schema:
+        type: "array"
+        items:
+          type: "integer"
+    ModelFilterSizes:
+      name: sizes
+      in: query
+      description: "Фильтр по размеру"
+      schema:
+        type: array
+        items:
+          type: integer
+    ModelFilterFeatures:
+      name: features
+      in: query
+      description: "Фильтр по характеристикам"
+      schema:
+        type: array
+        items:
+          type: integer
+    ModelFilterShowUnavailable:
+      name: "showUnavailable"
+      in: "query"
+      description: "Показывать модели не в наличии"
+      schema:
+        type: "boolean"
+    ModelFields:
+      name: "modelFields"
+      in: "query"
+      description: >
+        Выбор полей модели в ответе:
+          * `id` идентификатор модели
+          * `dsm` идентификатор супер модели
+          * `image` главное изображение
+          * `review` оценка
+          * `price` обычная цена
+          * `promoPrice` акционная цена или 0
+          * `name` название модели
+          * `brand` бренд
+          * `articles` список артикулов
+          * `notes` звезды рейтинга
+          * `parts` состав
+        По умолчанию выводится id, image, name, price, promoPrice, name, brand
+      schema:
+        type: "array"
+        items:
+          type: "string"
+          enum: [id, dsm, image, review, price, promoPrice, name, brand, articles, notes, parts]
+    SuperModelFields:
+        name: "superModelFields"
+        in: "query"
+        description: >
+          Выбор полей супермодели в ответе:
+            * `id` идентификатор супермодели
+            * `texts` стандартные текстовые блоки
+            * `characteristics` характеристики
+            * `laundry` Значки по стирке
+            * `benefits` Преимущества
+            * `care` Советы по хранению
+            * `models` Список моделей
+            * `filters` Характеристики для сравнения
+        schema:
+          type: "array"
+          items:
+            type: "string"
+            enum: [id, texts, characteristics, laundry, benefits, care, models, filters]
+    ModelId:
+        name: modelId
+        schema:
+          type: integer
+        in: "path"
+        description: "Идентификатор модели"
+        required: true
+    CategoryId:
+        name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: "Идентификатор категории"
